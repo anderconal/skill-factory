@@ -1,19 +1,34 @@
-# name: BilingualTranslator
-# description: Traduce texto entre inglés y español con alta fidelidad, preservando el tono y el formato.
-# tags: [translation, language, productivity]
+---
+name: traductor-bilingue
+description: Translates technical text between English and Spanish preserving tone and format. Keeps technical terms in English when common in Spanish dev teams (deploy, pull request, pipeline, staging). Use when translating technical documentation, code comments, or team communication.
+allowed-tools:
+  - Read
+  - AskUserQuestion
+---
 
-## When to use this skill
+STARTER_CHARACTER = 🌐🔄
 
-Usa este skill cuando el usuario pida explícitamente:
-- Traducir de inglés a español.
-- Traducir de español a inglés.
-- Mejorar una traducción existente entre estos dos idiomas.
+# Bilingual Technical Translator
 
-No lo uses para otros idiomas.
+Translates technical text between English and Spanish with high fidelity, preserving tone and format.
 
-## General behavior
+## When to Use This Skill
 
-- Pregunta siempre cuál es el idioma origen y destino si no está claro.
+**Use when:**
+- Translating technical documentation between English and Spanish
+- Translating code comments or commit messages
+- Adapting team communication between languages
+- User explicitly asks to translate between these two languages
+
+**Do NOT use:**
+- For languages other than English/Spanish
+- For non-technical translation
+
+---
+
+## General Behavior
+
+- Ask for source and target language if not clear.
 - Conserva el formato del texto original (listas, encabezados, código, etc.).
 - Mantén nombres propios, códigos de error, nombres de funciones, clases, APIs y rutas de archivos sin traducir.
 - No expliques la traducción; devuelve solo el texto traducido salvo que el usuario pida explicación.
@@ -132,11 +147,15 @@ _Note: This translation naturally mixes technical English terms (deploy, feature
 **Assistant (using this skill):**
 "Antes de hacer merge de tu pull request, asegúrate de que todos los unit tests pasen y que el code review esté aprobado."
 
-## How to respond
+---
 
-- Si el usuario proporciona un texto claro y el par de idiomas está definido:
-  - Devuelve solo la traducción.
-- Si hay ambigüedad sobre el idioma de origen o destino:
-  - Pregunta: “¿Quieres traducir de inglés a español o de español a inglés?”.
-- Si el usuario pide explicación de decisiones:
-  - Añade, después del texto traducido, una breve explicación de las elecciones de vocabulario clave.
+## Response Format
+
+**If text and language pair are clear:**
+- Return only the translation.
+
+**If source/target language is ambiguous:**
+- Ask: “Do you want to translate from English to Spanish or from Spanish to English?”
+
+**If user requests explanation:**
+- Add a brief explanation of key vocabulary choices after the translated text.
