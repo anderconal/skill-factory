@@ -191,12 +191,6 @@ class DocumentStorage:
         path = f"documents/{document_id}/v{version}.{format}"
         return self._storage.retrieve(path)
 
-    def list_versions(self, document_id: str) -> list[int]:
-        """List all versions of document."""
-        # This would require additional storage wrapper method
-        # for listing objects with prefix
-        raise NotImplementedError("Requires list_by_prefix wrapper method")
-
     def _content_type(self, format: str) -> str:
         """Map format to content type."""
         types = {
