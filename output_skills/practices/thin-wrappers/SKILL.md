@@ -1,15 +1,15 @@
 ---
 name: thin-wrappers
-description: Build infrastructure wrappers exposing only needed SDK functionality in domain language. Use when wrapping infrastructure SDKs or decoupling from external dependencies.
+description: Encapsulates infrastructure SDKs behind minimal domain-aligned interfaces. Use when accessing any external infrastructure to keep SDK usage contained, testing simple, and changes easy.
 ---
 
 STARTER_CHARACTER = 🏗️
 
 # Thin Infrastructure Wrappers
 
-## What They Are
+## Core Principle
 
-Minimal abstraction layers that encapsulate third-party SDKs and drivers. They expose only the specific functionality needed for current business requirements using domain-aligned language.
+Minimize the API surface area: expose only what you use today, in your domain's language. The wrapper should be significantly smaller than the SDK it wraps.
 
 ## When to Apply
 
@@ -83,11 +83,11 @@ Each step should be independently committable and testable.
 
 ## Integration with Architecture
 
-Thin wrappers support hexagonal/clean architecture:
-- Place wrappers in infrastructure/adapter layer
-- Implement domain-defined interfaces (ports)
-- Keep domain layer free of infrastructure concepts
-- Enable testing domain logic without infrastructure
+Thin wrappers naturally map to the adapter layer in hexagonal/clean architecture, implementing domain-defined ports.
+
+## Testing
+
+Thin wrappers enable simple test doubles — no mocking libraries needed. See examples for test double implementations.
 
 ## Anti-Patterns
 
