@@ -2,29 +2,35 @@
 
 ## When to Apply
 
-After all other lenses. This is the wrap-up — push refactoring to its limit.
+After all other lenses. This is the wrap-up — assess the code holistically and decide what deserves a second pass.
 
-## What Worker Should Do
+## Phase 1: Assess
 
-Implement remaining refactorings, not just list them. Worker should also note issues beyond refactoring's reach.
+Read through the refactored code end to end. Earlier lenses changed the code — those changes may have created new opportunities that were invisible on the first pass.
 
-## Your Job: The Loop
+Ask for each lens area:
+- Did the responsibility and coupling changes reveal new cohesion issues?
+- Did extracting functions create new naming or abstraction-level problems?
+- Did consolidating logic surface new duplication or wrong abstractions?
+- Are there conditionals that became visible only after other cleanup?
 
-Review worker's changes. Ask: "Are there more refactorings?"
+## Phase 2: Plan
 
-- **Yes** → Send worker back: "I see more refactoring opportunities: [specific example]. Go again."
-- **No** → Refactoring is exhausted. Write the summary.
+Pick the lenses that would benefit most from a re-run. Prioritize by impact — which re-run would produce the most meaningful improvement?
 
-Keep looping until worker truly can't find more. Don't let them stop early.
+Always end the plan with the surface lenses (01-formatting, 02-naming, 03-method-length) — structural refactoring creates new surface mess that needs a final cleanup pass.
 
-## When Refactoring Is Exhausted
+Message **WORKER_NAME** with the plan: which lenses to re-apply and in what order. For each lens, tell the worker to read the lens file again and apply it fresh.
+
+## Phase 3: Execute
+
+Walk the worker through the re-run plan one lens at a time, reviewing diffs after each. When the re-run plan is exhausted and no further improvements are visible, move to wrap-up.
+
+## Wrap-up
 
 Write REFACTORING-LOG.md:
-
 - What was refactored (summary of the journey — key transformations, patterns applied, before/after highlights)
-- Current problems (issues that can't be fixed by restructuring alone — things needing behavior changes)
+- Current problems (issues that cannot be fixed by restructuring alone — things needing behavior changes)
 - Future improvements (recommendations for the human — what should the code do differently?)
 
-## When Done
-
-When no refactorings remain and you've written the log, run `speak "Refactoring complete"`.
+Then run: `speak "Refactoring complete"`

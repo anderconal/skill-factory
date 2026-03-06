@@ -54,9 +54,4 @@ Update after each transition. This survives context compaction.
 
 ## When All Lenses Exhausted
 
-Write REFACTORING-LOG.md:
-- What was refactored (key transformations, before/after highlights)
-- Current problems (issues needing behavior changes)
-- Future improvements (recommendations beyond refactoring)
-
-Then run: `speak "Refactoring complete"`
+The final-review lens handles wrap-up: re-running lenses, writing the log, and declaring completion. Follow its reviewer guide.
