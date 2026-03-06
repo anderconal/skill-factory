@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 <source-dir> <destination> [baseline-commit]"
+    echo ""
+    echo "Exports a refactoring attempt (code + patches) from a git worktree."
+    echo ""
+    echo "  source-dir       Directory containing the refactored code"
+    echo "  destination       Export target (must not already exist)"
+    echo "  baseline-commit   Generate patches from this commit onward"
+    echo "                    (default: merge-base with main)"
+    exit 1
+}
+
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+    usage
+fi
+
+SOURCE_DIR="$(cd "$1" && pwd)"
+DESTINATION="$2"
+[[ "$DESTINATION" != /* ]] && DESTINATION="$(pwd)/$DESTINATION"
+BASELINE="${3:-}"
+
+if [[ ! -d "$SOURCE_DIR" ]]; then
+    echo "Error: Source not found: $SOURCE_DIR"
+    exit 1
+fi
+
+if [[ -e "$DESTINATION" ]]; then
+    echo "Error: Destination already exists: $DESTINATION"
+    exit 1
+fi
+
+GIT_ROOT="$(cd "$SOURCE_DIR" && git rev-parse --show-toplevel)" || {
+    echo "Error: Source is not in a git repository"
+    exit 1
+}
+
+if [[ -z "$BASELINE" ]]; then
+    BASELINE="$(cd "$GIT_ROOT" && git merge-base HEAD main)" || {
+        echo "Error: Cannot detect baseline. Provide a commit explicitly."
+        exit 1
+    }
+fi
+
+if [[ "$SOURCE_DIR" == "$GIT_ROOT" ]]; then
+    RELATIVE_PATH="."
+else
+    RELATIVE_PATH="${SOURCE_DIR#"$GIT_ROOT"/}"
+fi
+
+echo "Exporting refactoring attempt..."
+echo "  Source:   $SOURCE_DIR"
+echo "  Target:   $DESTINATION"
+echo "  Baseline: ${BASELINE:0:7}"
+
+mkdir -p "$DESTINATION"
+
+echo "  Copying files..."
+cp -r "$SOURCE_DIR/." "$DESTINATION/"
+
+echo "  Cleaning caches..."
+find "$DESTINATION" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find "$DESTINATION" -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
+find "$DESTINATION" -name ".approval_tests_temp" -type d -exec rm -rf {} + 2>/dev/null || true
+
+echo "  Generating patches..."
+mkdir -p "$DESTINATION/patches"
+cd "$GIT_ROOT"
+
+if [[ "$RELATIVE_PATH" == "." ]]; then
+    PATCH_COUNT=$(git format-patch "$BASELINE..HEAD" -o "$DESTINATION/patches" | wc -l | tr -d ' ')
+else
+    PATCH_COUNT=$(git format-patch "$BASELINE..HEAD" -o "$DESTINATION/patches" -- "$RELATIVE_PATH/" | wc -l | tr -d ' ')
+fi
+
+echo ""
+echo "Exported $PATCH_COUNT patches to $DESTINATION"
