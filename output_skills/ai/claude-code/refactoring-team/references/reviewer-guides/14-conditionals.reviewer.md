@@ -10,23 +10,22 @@ After semantic clarity. Now that the code tells its story, look at branching log
 - Complex boolean expressions extracted into named variables or predicate functions
 - Multiple conditions with the same outcome consolidated into one named check
 - Type-switching replaced with lookup tables or maps
-- Scattered null checks replaced with a special case or default object
 
 ## First Pass
 
 Worker should find the obvious: deep nesting that can be flattened with guard clauses, unnamed boolean expressions, repeated null checks.
 
+Check for false positives: if the worker converted symmetric branches into guard clauses, push back — if/else communicates that both paths are equally important. If the worker named a boolean that's no clearer than the expression (`isCountPositive` for `count > 0`), the name should say more than the code already does. If the worker added 7+ guard clauses, the function does too much — it needs splitting, not more guards.
+
 ## Second Pass
 
-If conditional complexity remains:
-- Look for boolean expressions the worker left inline — do they have a name in the domain?
-- Check for the same switching pattern appearing in multiple places — that is the signal for polymorphism, not a single conditional
-- Look for guard clauses that could be consolidated — if three guards return the same thing, they are one concept
+Do the main-path test yourself: pick a function and find what it normally does without reading every branch. Then look for what the worker missed:
+- Boolean expressions left inline that have a name in the domain
+- The same switching pattern in multiple places — the signal for polymorphism
+- Guards that could be consolidated — three guards returning the same thing are one concept
+- Boolean combinations encoding hidden states — flags checked together are a state machine
 
-## Push Back On
-
-- Premature polymorphism: if the worker introduces a class hierarchy for a conditional that only appears once, push back — a guard clause or lookup table is likely simpler
-- Too many guard clauses: if a function has 7+ guards, the problem is not the conditionals but the function doing too much
+Check for wrong fixes: premature polymorphism for a one-off conditional (a lookup table is simpler), Null Objects swallowing errors that should surface, or null checks deep in domain code (fix the boundary or type, not the symptom).
 
 ## When Done
 
