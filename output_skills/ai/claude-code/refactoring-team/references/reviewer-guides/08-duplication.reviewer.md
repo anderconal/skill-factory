@@ -2,29 +2,31 @@
 
 ## When to Apply
 
-After patterns. Once patterns are explicit, duplicate encodings of the same concept become visible.
+After patterns. Once patterns are explicit, duplicate encodings of the same concept become visible — in production code, in tests, and between the two.
 
 ## What to Look For in Diffs
 
-- Multiple lists/structures consolidated into one source of truth
-- Derived values instead of parallel definitions
-- Single constants replacing scattered magic values
+- Parallel structures consolidated into a single source of truth
+- Structural duplication extracted into a shared skeleton (template method, shared algorithm)
+- Test scenarios deduplicated — behavior proved once, not re-tested across classes
+- Test assertions using pre-calculated expected values instead of recomputing production logic
 
 ## First Pass
 
-Worker should spot obvious duplication — parallel lists, repeated constants, similar transformations.
+Worker should find the obvious: parallel structures encoding the same set of things, structural duplication (same algorithm shape repeated), test classes re-verifying behavior proved elsewhere, tests that mirror production logic in assertions.
+
+Check for false positives: identical code that serves different domain purposes is not duplication. Two functions may look the same today but represent different business rules that will change independently. Push back if the worker merged code that happens to look alike but has different reasons to change.
 
 ## Second Pass
 
-If worker found nothing:
-- Look for data structures that define the same set of things
-- Find the same knowledge written in multiple places
-- Ask: what knowledge is encoded more than once?
+If the worker missed things:
+- Apply the "change for the same reason" test: pick a business rule and trace where it's encoded — if it appears in more than one place, that's knowledge duplication
+- Look at test classes: does any class re-test behavior that another class already covers?
+- Check for tests that recompute what production code computes — the assertion should state the expected value, not re-derive it
+- Look for redundant assertions: does assertIsInstance add anything when assertEqual on the value already proves the type?
 
-## Trade-off Reminder
-
-Not all duplication is bad. Sometimes explicit parallel structures are clearer than a clever derivation. Ask: does consolidating help readers, or just satisfy DRY purists?
+Check for wrong fixes: if the worker extracted a premature abstraction to eliminate surface duplication, that may create a wrong abstraction — conditionals and parameters to serve divergent callers. Better to leave duplication than force a bad merge. The fix for structural duplication is a shared skeleton, not copy-paste elimination.
 
 ## When Done
 
-Move on when duplicated knowledge is consolidated where it helps clarity, and left explicit where that's clearer.
+Move on when duplicated knowledge is consolidated where the reason to change is genuinely shared, and left alone where the similarity is coincidental.
