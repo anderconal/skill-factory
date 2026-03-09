@@ -1,6 +1,6 @@
 ---
 name: project-done
-description: Defines project Definition of Done: ACs verified, git clean and pushed, quality gates passing (dotnet test + format, pnpm test:unit, lint, type-check, build), and ethical gate (features cannot ship if usage increases without value). Use when checking if a story is done or a feature can be shipped.
+description: "Defines project Definition of Done: ACs verified, git clean and pushed, quality gates passing (dotnet test + format, pnpm test:unit, lint, type-check, build), and ethical gate (features cannot ship if usage increases without value). Use when checking if a story is done or a feature can be shipped."
 ---
 
 STARTER_CHARACTER = ✅
