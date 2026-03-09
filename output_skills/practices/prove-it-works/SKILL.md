@@ -1,6 +1,6 @@
 ---
 name: prove-it-works
-description: Requires observable runtime evidence before declaring done or approving a review. Per artifact type, executes appropriate live verification: navigates real UI and checks console, calls actual endpoints and validates responses, runs commands and reads output, checks pipeline status. Static analysis passing is necessary but not sufficient.
+description: "Requires observable runtime evidence before declaring done or approving a review. Per artifact type, executes appropriate live verification: navigates real UI and checks console, calls actual endpoints and validates responses, runs commands and reads output, checks pipeline status. Static analysis passing is necessary but not sufficient."
 ---
 
 STARTER_CHARACTER = 🔬

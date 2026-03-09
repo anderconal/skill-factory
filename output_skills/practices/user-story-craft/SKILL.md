@@ -1,6 +1,6 @@
 ---
 name: user-story-craft
-description: Shapes User Story quality: INVEST validation, specific ACs (Given/When/Then), vertical slicing, state separation (happy/empty/error). Accepts User Story or Job Story formats. Applies PM-with-ownership (not requirements transcription). Use when writing, reviewing, or discussing stories, features, or acceptance criteria.
+description: "Shapes User Story quality: INVEST validation, specific ACs (Given/When/Then), vertical slicing, state separation (happy/empty/error). Accepts User Story or Job Story formats. Applies PM-with-ownership (not requirements transcription). Use when writing, reviewing, or discussing stories, features, or acceptance criteria."
 ---
 
 STARTER_CHARACTER = 📋
