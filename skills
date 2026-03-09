@@ -12,6 +12,8 @@ REPO_ROOT = Path(__file__).parent.resolve()
 SKILLS_SOURCE_DIR = REPO_ROOT / "output_skills"
 GLOBAL_SKILLS_DIR = Path.home() / ".claude" / "skills"
 LOCAL_SKILLS_DIR = Path.cwd() / ".claude" / "skills"
+COPILOT_GLOBAL_SKILLS_DIR = Path.home() / ".copilot" / "skills"
+COPILOT_LOCAL_SKILLS_DIR = Path.cwd() / ".github" / "skills"
 
 
 def discover_skills():
@@ -64,6 +66,73 @@ def is_installed(registry, skill_name):
 def is_installed_local(skill_name):
     target = LOCAL_SKILLS_DIR / skill_name
     return target.exists() and target.is_dir()
+
+
+def is_installed_copilot(registry, skill_name):
+    source = skill_source_path(registry, skill_name)
+    if not source:
+        return False
+    target = COPILOT_GLOBAL_SKILLS_DIR / skill_name
+    return target.is_symlink() and target.resolve() == source
+
+
+def is_installed_copilot_local(skill_name):
+    target = COPILOT_LOCAL_SKILLS_DIR / skill_name
+    return target.exists() and target.is_dir()
+
+
+def install_skill_copilot(registry, skill_name):
+    source = skill_source_path(registry, skill_name)
+    if not source:
+        return False
+    target = COPILOT_GLOBAL_SKILLS_DIR / skill_name
+
+    if target.exists() or target.is_symlink():
+        if target.is_symlink():
+            target.unlink()
+        else:
+            print(f"Error: {target} exists but is not a symlink. Remove manually.")
+            return False
+
+    COPILOT_GLOBAL_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(source)
+    return True
+
+
+def uninstall_skill_copilot(skill_name):
+    target = COPILOT_GLOBAL_SKILLS_DIR / skill_name
+    if target.is_symlink():
+        target.unlink()
+        return True
+    elif target.exists():
+        print(f"Error: {target} is not a symlink. Remove manually.")
+        return False
+    return True
+
+
+def install_skill_copilot_local(registry, skill_name):
+    source = skill_source_path(registry, skill_name)
+    if not source:
+        return False
+    target = COPILOT_LOCAL_SKILLS_DIR / skill_name
+
+    if target.exists():
+        shutil.rmtree(target)
+
+    COPILOT_LOCAL_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
+    return True
+
+
+def uninstall_skill_copilot_local(skill_name):
+    target = COPILOT_LOCAL_SKILLS_DIR / skill_name
+    if target.exists() and target.is_dir():
+        shutil.rmtree(target)
+        return True
+    elif target.exists():
+        print(f"Error: {target} is not a directory. Remove manually.")
+        return False
+    return True
 
 
 def install_skill(registry, skill_name):
@@ -203,6 +272,73 @@ def cli_uninstall_local(skill_name):
         sys.exit(1)
 
 
+def cli_status_copilot():
+    registry = discover_skills()
+    if not registry:
+        print("No skills found in output_skills/")
+        return
+
+    current_category = None
+    for name in sorted(registry, key=lambda n: (skill_category(registry, n), n)):
+        category = skill_category(registry, name) or "(uncategorized)"
+        if category != current_category:
+            if current_category is not None:
+                print()
+            print(f"  {category}/")
+            current_category = category
+        status = "installed" if is_installed_copilot(registry, name) else "not installed"
+        print(f"    {name:<28} {status}")
+
+
+def cli_status_copilot_local():
+    registry = discover_skills()
+    if not registry:
+        print("No skills found in output_skills/")
+        return
+
+    print(f"Copilot local skills ({COPILOT_LOCAL_SKILLS_DIR}):")
+    current_category = None
+    for name in sorted(registry, key=lambda n: (skill_category(registry, n), n)):
+        category = skill_category(registry, name) or "(uncategorized)"
+        if category != current_category:
+            if current_category is not None:
+                print()
+            print(f"  {category}/")
+            current_category = category
+        status = "installed" if is_installed_copilot_local(name) else "not installed"
+        print(f"    {name:<28} {status}")
+
+
+def cli_install_copilot(skill_name):
+    registry = discover_skills()
+    if install_skill_copilot(registry, skill_name):
+        print(f"Installed '{skill_name}' (copilot global)")
+    else:
+        sys.exit(1)
+
+
+def cli_uninstall_copilot(skill_name):
+    if uninstall_skill_copilot(skill_name):
+        print(f"Uninstalled '{skill_name}' (copilot global)")
+    else:
+        sys.exit(1)
+
+
+def cli_install_copilot_local(skill_name):
+    registry = discover_skills()
+    if install_skill_copilot_local(registry, skill_name):
+        print(f"Installed '{skill_name}' (copilot local: {COPILOT_LOCAL_SKILLS_DIR})")
+    else:
+        sys.exit(1)
+
+
+def cli_uninstall_copilot_local(skill_name):
+    if uninstall_skill_copilot_local(skill_name):
+        print(f"Uninstalled '{skill_name}' (copilot local)")
+    else:
+        sys.exit(1)
+
+
 def build_tui_lines(registry):
     lines = []
     current_category = None
@@ -332,6 +468,13 @@ def print_usage():
     print("  ./skills local status        List local skills status")
     print("  ./skills local install <name>   Install skill locally (copy)")
     print("  ./skills local uninstall <name> Uninstall skill locally")
+    print("")
+    print("  ./skills copilot status                  List Copilot global skills status")
+    print("  ./skills copilot install <name>          Install skill for Copilot globally (symlink)")
+    print("  ./skills copilot uninstall <name>        Uninstall skill for Copilot globally")
+    print("  ./skills copilot local status            List Copilot local skills status")
+    print("  ./skills copilot local install <name>    Install skill for Copilot locally (copy)")
+    print("  ./skills copilot local uninstall <name>  Uninstall skill for Copilot locally")
 
 
 def main():
@@ -366,6 +509,26 @@ def main():
             cli_install_local(args[2])
         elif args[1] == "uninstall" and len(args) == 3:
             cli_uninstall_local(args[2])
+        else:
+            print_usage()
+            sys.exit(1)
+    elif args[0] == "copilot" and len(args) >= 2:
+        if args[1] == "status":
+            cli_status_copilot()
+        elif args[1] == "install" and len(args) == 3:
+            cli_install_copilot(args[2])
+        elif args[1] == "uninstall" and len(args) == 3:
+            cli_uninstall_copilot(args[2])
+        elif args[1] == "local" and len(args) >= 3:
+            if args[2] == "status":
+                cli_status_copilot_local()
+            elif args[2] == "install" and len(args) == 4:
+                cli_install_copilot_local(args[3])
+            elif args[2] == "uninstall" and len(args) == 4:
+                cli_uninstall_copilot_local(args[3])
+            else:
+                print_usage()
+                sys.exit(1)
         else:
             print_usage()
             sys.exit(1)
