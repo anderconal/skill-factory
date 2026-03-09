@@ -1,0 +1,3 @@
+https://raw.githubusercontent.com/github/docs/main/content/copilot/concepts/agents/about-agent-skills.md
+https://raw.githubusercontent.com/github/docs/main/content/copilot/how-tos/use-copilot-agents/coding-agent/create-skills.md
+https://raw.githubusercontent.com/github/docs/main/content/copilot/reference/customization-cheat-sheet.md
