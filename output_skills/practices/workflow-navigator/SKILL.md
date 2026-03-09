@@ -1,6 +1,6 @@
 ---
 name: workflow-navigator
-description: Watches the development session and proactively suggests the right command when signals emerge: ambiguity or blockers → /sync-story, completion → /finish-work, scope creep → /create-story, session ending → /sync-story pause, no active story → /start-work. Always active during development sessions.
+description: "Watches the development session and proactively suggests the right command when signals emerge: ambiguity or blockers → /sync-story, completion → /finish-work, scope creep → /create-story, session ending → /sync-story pause, no active story → /start-work. Always active during development sessions."
 ---
 
 STARTER_CHARACTER = 🧭
