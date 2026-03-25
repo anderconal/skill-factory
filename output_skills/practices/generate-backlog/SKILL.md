@@ -56,23 +56,61 @@ Input: PM agent JSON. Output: enriched JSON with `approved` flags and `investSco
 
 **If `--dry-run`** or no issue tracker MCP is available: display the final JSON and a structured summary. Done.
 
-**Otherwise**, discover project config via MCP before creating anything:
+**Otherwise**, start with a single upfront prompt to the user before any MCP call:
+
+> "To create issues in Jira I need:
+> - **Project key** (e.g. `ABC`)
+> - **Issue type names**: I'll default to **Epic** and **User Story**. If your project uses different names, tell me now."
+
+Then run all discovery calls in parallel:
 1. Get accessible resources to find the workspace/cloud ID
-2. Get visible projects — if multiple exist, ask the user which one to use
-3. Get issue type metadata for that project to identify Epic and Story type IDs
+2. Get issue type metadata for the specified project → match names to get Epic and Story type IDs
+3. Get field metadata for the **User Story** issue type → extract field IDs for:
+   - Story points (key/name containing `story_point`)
+   - Acceptance criteria (key/name containing `acceptance`)
+   - Fix Versions (key/name `fixVersions` or name "Fix versions")
+4. Get available issue link types → identify the one representing "is blocked by" / "depends on" (look for name containing `block` or `depend`)
 
-**Creation strategy — two sequential phases, parallel within each:**
+**Fallback rule for missing fields:** if a custom field for story points, acceptance criteria, or fix versions is not found in the project, include the value in the description instead of omitting it. All data must appear somewhere — never silently dropped.
+
+**Description format — always ADF:**
+
+All descriptions must be Atlassian Document Format (ADF). Never send plain text with `\n` — it renders literally.
+
+Build the description ADF document in this order:
+1. User story sentence (`As a [role]...`)
+2. Story points line — only if no dedicated field found (e.g. `Story Points: 3`)
+3. Fix versions line — only if no dedicated field found (e.g. `Fix Versions: v1.0`)
+4. Acceptance Criteria bullet list — only if no dedicated field found
+
+```json
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    { "type": "paragraph", "content": [{ "type": "text", "text": "As a [role], I want [action], so that [benefit]." }] },
+    { "type": "paragraph", "content": [{ "type": "text", "text": "Acceptance Criteria:" }] },
+    {
+      "type": "bulletList",
+      "content": [
+        { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Given X, when Y, then Z" }] }] }
+      ]
+    }
+  ]
+}
+```
+
+**Creation strategy — batch, dependency-aware:**
 
 ```
-Phase 1: Create ALL approved Epics in parallel
-         ↓ wait for all to complete, collect keys
-Phase 2: Create ALL approved Stories in parallel
-         (each links to its parent Epic key from Phase 1)
+Phase 1: Bulk-create ALL approved Epics → collect Epic keys
+
+Phase 2: Topologically sort stories by dependsOn:
+  Level 0: stories with no dependsOn → bulk-create, collect their keys
+  Level N: stories whose dependsOn are all already created → bulk-create,
+           then add the discovered link type to each dependency pair
+  Repeat until all stories are created
 ```
-
-If the MCP reports rate limiting, batch into groups of 5–10.
-
-For each Story: set story points if the field is available, assign release if `--release` was specified.
 
 **Show summary when done:**
 ```
