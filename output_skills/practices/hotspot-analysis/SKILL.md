@@ -87,6 +87,8 @@ Use percentile rank within the dataset. Fixed thresholds (e.g., ≥ 0.5) break o
 
 **Maintenance mode override**: ACTIVE WORK does NOT mean safe. Reclassify as **MAINTENANCE INCIDENT RESPONSE** — churn in maintenance mode equals repeated emergency patching with non-standard commit messages, not feature development.
 
+**Zero ACTIVE CRISIS edge case**: If the dataset has fewer than 4 tracked files, the top-25% threshold covers at most one file and may produce no ACTIVE CRISIS entries. In this case, do not force-classify files — output a SAFE ZONE confirmation instead: deliver the full scored matrix and include a prominent note that no crisis-level files were detected. Proceed directly to Step 8 to persist the matrix; skip Steps 4–7 (fix-chain clusters, function drill-down, workflow deviations, and the report sections that require ACTIVE CRISIS files). The HTML report must still be generated with the matrix table, methodology box, and the SAFE ZONE note.
+
 ## Step 4: Detect fix-chain clusters
 
 For each ACTIVE CRISIS file, extract all defect commits and compute inter-commit gaps. Use the exact command in [references/methodology.md — Fix-Chain Extraction](references/methodology.md).
