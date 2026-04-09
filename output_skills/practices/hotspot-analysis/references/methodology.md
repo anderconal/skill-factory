@@ -82,21 +82,48 @@ Dominant error class per file = the class with the highest count. Report all fiv
 
 ---
 
+## Step 1: Dominant Class Lookup
+
+Run this immediately after the five error-class greps above, before generating `file_monthly.csv`. It builds a per-file lookup from the already-computed `/tmp/error_*.txt` files — no new git log queries.
+
+```bash
+# Label each error class file with its class name and merge
+awk '{print $1, $2, "null"}' /tmp/error_null.txt > /tmp/all_classes.txt
+awk '{print $1, $2, "sql"}' /tmp/error_sql.txt >> /tmp/all_classes.txt
+awk '{print $1, $2, "notification"}' /tmp/error_notification.txt >> /tmp/all_classes.txt
+awk '{print $1, $2, "concurrency"}' /tmp/error_concurrency.txt >> /tmp/all_classes.txt
+awk '{print $1, $2, "auth"}' /tmp/error_auth.txt >> /tmp/all_classes.txt
+
+# For each file, keep only the class with the highest count
+sort -k2,2 -k1,1rn /tmp/all_classes.txt \
+  | awk '!seen[$2]++ {print $2, $3}' > /tmp/dominant_class.txt
+```
+
+Output: one line per file — `<file> <dominant_class>`. Files absent from all five error-class outputs default to `unknown`.
+
+---
+
 ## Step 1: Monthly Breakdown (file_monthly.csv)
+
+Requires: Dominant Class Lookup completed above (`/tmp/dominant_class.txt` must exist).
 
 Covers all history. One row per file × month. Run for each ACTIVE CRISIS file (peak_month is only reported in ACTIVE CRISIS cards, so full-history extraction for non-crisis files is not required).
 
 ```bash
-# For each ACTIVE CRISIS file, get monthly defect commit counts:
-git log BRANCHES --format="%ad" --date=format:"%Y-%m" \
-  --grep="$DEFECT_GREP" -i -- <file> \
-  | sort | uniq -c \
-  | awk -v f="<file>" '{print f "," $2 "," $1 ",unknown"}' >> /tmp/file_monthly_raw.txt
+# For each ACTIVE CRISIS file, look up its dominant class and get monthly defect commit counts
+for FILE in <ACTIVE_CRISIS_FILE_1> <ACTIVE_CRISIS_FILE_2>; do
+  DOM=$(awk -v f="$FILE" '$1==f {print $2; exit}' /tmp/dominant_class.txt)
+  DOM=${DOM:-unknown}
+  git log BRANCHES --format="%ad" --date=format:"%Y-%m" \
+    --grep="$DEFECT_GREP" -i -- "$FILE" \
+    | sort | uniq -c \
+    | awk -v f="$FILE" -v dom="$DOM" '{print f "," $2 "," $1 "," dom}' >> /tmp/file_monthly_raw.txt
+done
 ```
 
 After running for all ACTIVE CRISIS files, write the result to `.claude/hotspots/file_monthly.csv` with the header `file,year_month,defect_count,dominant_bug_class`.
 
-`dominant_bug_class` is the file-level dominant error class (null/sql/notification/concurrency/auth) from the error class extraction — apply the same value to every month row for that file.
+`dominant_bug_class` is the file-level dominant error class — the same value for every month row of that file. It comes from the Dominant Class Lookup above, not from per-month per-file git greps (which would require 5 × N × M commands and are not needed).
 
 peak_month = the year_month row with the highest defect_count for that file.
 
