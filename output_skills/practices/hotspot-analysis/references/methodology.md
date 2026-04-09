@@ -236,6 +236,7 @@ All columns from above, plus:
 ```
 weighted_churn, weighted_defect,
 norm_churn, norm_defect, norm_oncall, norm_author,
+defect_score, churn_score, oncall_score, author_score,
 hotspot_score, acceleration, quadrant
 ```
 

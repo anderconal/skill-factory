@@ -55,17 +55,26 @@ weighted_defect = defect_6m × 3.0 + defect_712m × 2.0 + defect_older × 0.5
 
 where `churn_older = churn_total − churn_6m − churn_712m`.
 
-All weighted values are then log-normalized: `score(x) = log(1 + x) / log(1 + max_x_in_dataset)`
+Each score component is computed from the weighted values using these exact definitions — do not substitute:
 
-Log normalization prevents a single outlier from compressing all other scores toward zero.
+```
+defect_score = log(1 + weighted_defect) / log(1 + max_weighted_defect_in_dataset)
+churn_score  = log(1 + weighted_churn)  / log(1 + max_weighted_churn_in_dataset)
+norm_oncall  = log(1 + oncall_count)    / log(1 + max_oncall_in_dataset)
+oncall_score = norm_oncall × 3
+author_score = log(1 + unique_authors)  / log(1 + max_unique_authors_in_dataset)
+```
+
+`defect_score` and `churn_score` are the log-normalized weighted values, each in [0, 1]. `oncall_score` applies a ×3 multiplier to boost on-call incidents relative to churn; its range is [0, 3]. `author_score` equals `norm_author`, in [0, 1].
+
+Log normalization prevents a single outlier from compressing all other scores toward zero. Do not add on-call weight to `defect_score` — on-call is already a separate term in the main formula.
 
 Additional derived metrics:
 - **Acceleration**: `defect_6m / defect_712m`. If `defect_712m == 0`, mark as `"new"` — do not divide by zero.
 - **recency_ratio_defect**: `defect_6m / defect_total`
 - **peak_month**: month with the highest defect commit count (from monthly breakdown in file_monthly.csv — ACTIVE CRISIS files only)
-- **On-call weight**: `log(1 + oncall_count) / log(1 + max_oncall) × 3`
 
-Gate: Show the formula, intermediate normalized values (norm_defect, norm_churn, norm_oncall), and the final score together. A number without component breakdown cannot be challenged or verified.
+Gate: Show the formula, all intermediate values (weighted_defect, weighted_churn, norm_oncall), all component scores (defect_score, churn_score, oncall_score, author_score), and the final hotspot_score together. A number without component breakdown cannot be challenged or verified.
 
 ## Step 3: Classify quadrant
 
