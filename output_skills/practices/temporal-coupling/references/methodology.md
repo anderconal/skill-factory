@@ -40,34 +40,37 @@ Performance note: this is O(1) subprocess spawns vs O(n) for the `while read has
 
 ## Seasonal Gap Detection
 
-Portable POSIX awk — no mktime, no GNU date, no Python:
+Portable POSIX awk — no mktime, no GNU date, no Python. Run for all ACTIVE CRISIS files in one loop:
 
 ```bash
-git log BRANCHES --format="%as" \
-  --grep="fix\|bug\|error\|hotfix" -i -- <file> \
-| sort \
-| awk '
-  function to_days(date,    y,m,d,i,days) {
-    y=substr(date,1,4)+0; m=substr(date,6,2)+0; d=substr(date,9,2)+0
-    days = y*365 + int(y/4) - int(y/100) + int(y/400) + d
-    for (i=1; i<m; i++) {
-      if (i==1||i==3||i==5||i==7||i==8||i==10||i==12) days+=31
-      else if (i==4||i==6||i==9||i==11) days+=30
-      else days += (y%400==0 || (y%4==0 && y%100!=0)) ? 29 : 28
+while IFS=',' read -r file _; do
+  echo "=== $file ==="
+  git log BRANCHES --format="%as" \
+    --grep="fix\|bug\|error\|hotfix" -i -- "$file" \
+  | sort \
+  | awk '
+    function to_days(date,    y,m,d,i,days) {
+      y=substr(date,1,4)+0; m=substr(date,6,2)+0; d=substr(date,9,2)+0
+      days = y*365 + int(y/4) - int(y/100) + int(y/400) + d
+      for (i=1; i<m; i++) {
+        if (i==1||i==3||i==5||i==7||i==8||i==10||i==12) days+=31
+        else if (i==4||i==6||i==9||i==11) days+=30
+        else days += (y%400==0 || (y%4==0 && y%100!=0)) ? 29 : 28
+      }
+      return days
     }
-    return days
-  }
-  NR==1 { prev=$0; next }
-  {
-    gap = to_days($0) - to_days(prev)
-    if (gap > 200 && gap < 500)
-      print gap " days: " prev " -> " $0
-    prev=$0
-  }
-'
+    NR==1 { prev=$0; next }
+    {
+      gap = to_days($0) - to_days(prev)
+      if (gap > 200 && gap < 500)
+        print gap " days: " prev " -> " $0
+      prev=$0
+    }
+  '
+done < <(awk -F',' 'NR>1 && $NF == "ACTIVE CRISIS" {print}' .claude/hotspots/matrix.csv)
 ```
 
-Gaps in the 200–500 day range are seasonal candidates. Verify both incidents share the same error class before labeling seasonal.
+`file` is column 1 of `matrix.csv`; `$NF` is the `quadrant` column (last). The `NR>1` skips the header row. Gaps in the 200–500 day range are seasonal candidates. Verify both incidents share the same error class before labeling seasonal.
 
 ---
 
