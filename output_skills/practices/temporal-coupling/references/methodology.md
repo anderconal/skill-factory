@@ -108,23 +108,30 @@ Identify: same root structural cause across multiple years, recurrence count, wh
 
 The report requires a "two-mechanism summary" with percentage estimates backed by data.
 
-Compute from the CSVs as follows:
+`fix_chains.csv` stores fix-level records (one row per defect commit). `days_since_previous_fix` is empty for the first fix of each file and an integer for all subsequent rows — a non-empty value means the commit was a repeat fix to an already-known problem.
 
-**Symptom-patching rate** — on-call incidents that are repeat fixes to an already-known problem:
+**Symptom-patching rate** — on-call repeat fixes to already-known problems:
 
 ```
-symptom_patching_count = count of rows in oncall_commits.csv
-  where hash appears in fix_chains.csv AND the file for that chain
-  has cluster_id > 1 (i.e., not the first cluster — it's a repeat fix)
+# Count on-call rows in fix_chains.csv that are NOT the first fix for their file.
+# "Not the first" = days_since_previous_fix is non-empty.
+symptom_patching_count = count of rows in fix_chains.csv
+  where was_oncall == 1
+  AND days_since_previous_fix != ""
+
+total_oncall_rows = count of all data rows in oncall_commits.csv (exclude header)
 
 symptom_patching_pct = (symptom_patching_count / total_oncall_rows) * 100
 ```
 
+No hash cross-reference is required. Both values come directly from the CSVs.
+
 **Coupling-induced rate** — on-call incidents that are part of a confirmed temporal chain:
 
 ```
-coupling_count = count of on-call hashes that appear in a confirmed
-  temporal chain (≥3 fixes across 2+ files within 15 days)
+coupling_count = count of on-call hashes (from oncall_commits.csv)
+  that appear in a confirmed temporal chain
+  (≥3 fixes across 2+ files within 15 days, identified in Step 3)
 
 coupling_pct = (coupling_count / total_oncall_rows) * 100
 ```

@@ -136,7 +136,7 @@ Files to write — use the exact column schemas in [references/methodology.md �
 - `.claude/hotspots/data/develop-backend.csv` — per-file signals for backend files (from Step 1)
 - `.claude/hotspots/data/develop-frontend.csv` — per-file signals for frontend files (from Step 1)
 - `.claude/hotspots/matrix.csv` — scored matrix with quadrant (from Steps 2–3)
-- `.claude/hotspots/fix_chains.csv` — cluster records (from Step 4)
+- `.claude/hotspots/fix_chains.csv` — fix-level records, one row per defect commit per file (from Step 4)
 - `.claude/hotspots/oncall_commits.csv` — classified on-call commits, full 13-column schema (from Step 1)
 - `.claude/hotspots/seasonal.csv` — monthly defect aggregates (from Step 1)
 - `.claude/hotspots/workflow_deviations.csv` — deviation records (from Step 6)

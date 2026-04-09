@@ -159,13 +159,35 @@ Files marked "new" are in active escalation and should appear in the acceleratio
 
 ## Fix-Chain Extraction
 
+One row per defect commit, sorted by date ascending. Run once per ACTIVE CRISIS file and append to `.claude/hotspots/fix_chains.csv`.
+
 ```bash
-git log BRANCHES --format="%H|%ad|%s" --date=short \
-  --grep="fix\|bug\|error\|hotfix\|patch" -i -- <file> \
-| awk -F'|' '{print $2, $1, $3}' | sort
+FILE="<file>"
+git log BRANCHES --format="%H|%ad|%s" --date=format:"%Y-%m-%d|%H|%w" \
+  --grep="fix\|bug\|error\|hotfix\|patch" -i -- "$FILE" \
+| sort -t'|' -k2 \
+| awk -F'|' -v file="$FILE" '
+  function to_days(d,   y,m,dd,i,tot,ml) {
+    y=substr(d,1,4)+0; m=substr(d,6,2)+0; dd=substr(d,9,2)+0
+    split("31,28,31,30,31,30,31,31,30,31,30,31",ml,",")
+    if (y%400==0 || (y%4==0 && y%100!=0)) ml[2]=29
+    tot = y*365 + int(y/4) - int(y/100) + int(y/400) + dd
+    for (i=1; i<m; i++) tot += ml[i]
+    return tot
+  }
+  BEGIN { prev_date = ""; OFS = "," }
+  {
+    hash=$1; date=$2; hour=$3+0; dow=$4+0; msg=$5
+    gsub(/,/, " ", msg)
+    is_oncall = (dow==0 || dow==6 || hour>=22 || hour<6) ? 1 : 0
+    gap = (prev_date == "") ? "" : (to_days(date) - to_days(prev_date))
+    print file, date, hash, is_oncall, gap, "BRANCHES", "normal", msg
+    prev_date = date
+  }
+' >> .claude/hotspots/fix_chains.csv
 ```
 
-Cluster = ≥3 defect commits within ≤15 days. Count exactly; do not estimate.
+Cluster = ≥3 consecutive rows for the same file where all gaps ≤15 days. Count exactly; do not estimate.
 
 ---
 
@@ -215,9 +237,15 @@ hotspot_score, acceleration, quadrant
 
 ### fix_chains.csv
 
+One row per defect commit (fix-level, not cluster summaries). Clusters are groups of ≥3 consecutive rows for the same file with all gaps ≤15 days — count them from the rows; they are not stored as separate records.
+
 ```
-file, cluster_id, start_date, end_date, length_days, commit_count, includes_oncall
+file, fix_date, commit_hash, was_oncall, days_since_previous_fix, branch, workflow_deviation, notes
 ```
+
+`days_since_previous_fix` — empty string for the first fix of each file; integer days for all subsequent rows.
+`was_oncall` — 1 if the commit fell on a weekend or between 22:00–05:59 local time, 0 otherwise.
+`workflow_deviation` — `normal`, `direct_to_master`, or `on_call_dtm`.
 
 ### oncall_commits.csv (13 columns)
 
