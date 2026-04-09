@@ -1,113 +1,132 @@
 ---
 name: hotspot-analysis
-description: Prioritizes work in any codebase by crossing git churn, defect density (bug-fix commits), and code complexity to find hotspots. Use when deciding where to refactor, reduce incidents, or start modernization.
+description: Scores and classifies git hotspots by defect density, churn, on-call commits, and fix-chain clusters, then delivers a quadrant-classified HTML report with function-level drill-down. Use when prioritizing refactoring, identifying risky files, or preparing a codebase health review.
+disable-model-invocation: true
+allowed-tools: Bash
 ---
-
-# Hotspot Analysis
 
 STARTER_CHARACTER = 🔬
 
 When starting, announce: "🔬 Using HOTSPOT-ANALYSIS skill".
 
-## The Core Principle
+Identifies WHICH files break most — scored, quadrant-classified, acceleration-tracked, on-call-annotated, and drilled to function level. Output is a scored HTML report. Precedes `/temporal-coupling`.
 
-A messy file untouched for 3 years is low priority. A messy file that changes every week and accumulates bugs is a crisis.
+## Step 0: Declare configuration
 
-Hotspot = high churn × high complexity × high defect density. Work in that order.
+Before extracting any data, ask or infer:
 
-## Step 1: Extract Churn from Git
+1. **Maintenance mode?** (no active feature development, only incident response) — changes all ACTIVE WORK quadrant interpretations
+2. **Branch scope** — which branches to include (e.g., `develop master training`). Required: do not assume.
+3. **Time window** — default: last 12 months, split as 6m recent + 7–12m prior (for acceleration)
+4. **Output target** — HTML file (path) or inline markdown summary
 
-Files changed most frequently in the last 6–12 months:
+Gate: If maintenance mode is not explicitly confirmed, emit a visible WARNING block in the final report. Never silently assume normal-development mode.
 
-```bash
-git log --since="6 months ago" --format=format: --name-only | grep -v '^$' | sort | uniq -c | sort -rn | head -20
-```
+## Step 1: Extract raw signals
 
-Scope to a specific module:
-```bash
-git log --since="6 months ago" --format=format: --name-only -- src/ | grep -v '^$' | sort | uniq -c | sort -rn
-```
+Run all extraction commands from [references/methodology.md](references/methodology.md). Do not substitute your own — branch scope, date ranges, and defect grep patterns are exact and their consistency matters across runs.
 
-## Step 2: Extract Defect Density
+Required per-file signals:
+- churn_total, churn_6m, churn_7_12m
+- defect_total, defect_6m, defect_7_12m
+- oncall_count (weekends + 22:00–05:59 local time)
+- unique_author_count
 
-Files most frequently touched by bug-fix commits:
+Gate: Every file in the final matrix must have values for all signals. If a file has only partial data, flag it explicitly — do not default to zero.
 
-```bash
-git log --since="6 months ago" --format=format: --name-only --grep="fix\|bug\|error\|hotfix\|patch" -i | grep -v '^$' | sort | uniq -c | sort -rn | head -20
-```
+## Step 2: Compute the hotspot score
 
-Files appearing in both churn and defect rankings are your highest-risk targets.
-
-## Step 3: Measure Complexity
-
-`lizard` works across C#, JS, TS, Python, Java and outputs cyclomatic complexity per function:
-
-```bash
-pip install lizard
-lizard src/ --sort cyclomatic_complexity -l csharp
-lizard src/ --sort cyclomatic_complexity -l javascript
-```
-
-Language-specific alternatives:
-- **C# / .NET**: Visual Studio Code Metrics, NDepend (commercial), or `dotnet` with Roslyn analyzers
-- **TypeScript / JS**: ESLint `complexity` rule (`"complexity": ["warn", 10]`), or `plato` for HTML reports
-
-## Step 4: Build the Hotspot Matrix
-
-Rank each file by churn, defect density, and complexity. Multiply ranks. Sort ascending — lowest score = highest priority.
+Exact formula — do not simplify, do not substitute:
 
 ```
-File                      | Churn | Defects | Complexity | Score
-OrderProcessor.cs         |   1   |    1    |     2      |   2   ← start here
-UserAuthService.ts        |   2   |    3    |     1      |   6
-LegacyReportGenerator.cs  |   8   |    7    |     1      |  56   ← leave it alone
+hotspot_score = 0.50 × defect_score
+              + 0.25 × churn_score
+              + 0.20 × oncall_score
+              + 0.05 × author_score
 ```
 
-Top 5–10 files by score are your hotspots. Everything else is noise.
+All component scores are log-normalized: `score(x) = log(1 + x) / log(1 + max_x_in_dataset)`
 
-## Step 5: Map the System (C4 Model)
+Log normalization prevents a single outlier (a file with 318 churn commits) from compressing all other scores toward zero.
 
-Before touching hotspots, understand what talks to what. Use only the first two levels:
+Additional metrics:
+- **Acceleration**: `defect_6m / defect_712m` — files where this > 1.5 are in active escalation regardless of absolute score
+- **On-call weight**: `log(1 + oncall_count) / log(1 + max_oncall) × 3` — the ×3 balances typically small raw oncall counts against churn/defect volume
 
-**Level 1 — Context**: Your system + external actors (users, APIs, other systems). Answer: what does it do and who uses it?
+Gate: Show the formula, intermediate normalized values (norm_defect, norm_churn, norm_oncall), and the final score together. A number without component breakdown cannot be challenged or verified.
 
-**Level 2 — Containers**: Deployable units (web app, API, DB, queue, scheduler) and the protocols between them. Answer: what are the moving parts?
+## Step 3: Classify quadrant
 
-Skip Levels 3 and 4 until actively refactoring a specific container.
+Based on defect_score and churn_score:
 
-```mermaid
-graph TD
-  User -->|HTTPS| WebApp
-  WebApp -->|SQL| DB[(SQL Server)]
-  WebApp -->|HTTP| PaymentAPI
-  Scheduler -->|SQL| DB
-```
+- **ACTIVE CRISIS** — defect_score ≥ 0.5, any churn_score
+- **DORMANT DEBT** — defect_score ≥ 0.5, churn_score < 0.3
+- **ACTIVE WORK** — defect_score < 0.3, churn_score ≥ 0.5
+- **SAFE ZONE** — defect_score < 0.3, churn_score < 0.3
 
-## Step 6: Start Using ADRs
+**Maintenance mode override**: ACTIVE WORK does NOT mean safe. Reclassify as **MAINTENANCE INCIDENT RESPONSE** — churn in maintenance mode equals repeated emergency patching with non-standard commit messages, not feature development.
 
-Every architectural decision from today gets a short Markdown file in `docs/adr/` or `decisions/`:
+## Step 4: Detect fix-chain clusters
 
-```markdown
-# ADR-001: Use Strangler Fig to replace OrderProcessor
+For each ACTIVE CRISIS file, extract all defect commits and compute inter-commit gaps. Use the exact command in [references/methodology.md — Fix-Chain Extraction](references/methodology.md).
 
-## Status
-Accepted
+A fix-chain cluster = ≥3 defect commits to the same file within ≤15 days.
 
-## Context
-OrderProcessor.cs has the highest hotspot score. Direct refactoring is too risky without tests.
+Report per cluster: start date, end date, length in days, commit count, whether any commit occurred in on-call hours.
 
-## Decision
-Introduce IOrderProcessor interface, route new flows to new implementation, keep legacy as fallback.
+Gate: Count clusters exactly from raw commit dates. "Approximately 3 clusters" is not acceptable.
 
-## Consequences
-- New flows are testable and typed
-- Legacy code stays until traffic is fully migrated
-- Adds one abstraction layer
-```
+## Step 5: Function-level drill-down (ACTIVE CRISIS files only)
 
-Number ADRs sequentially. Never delete — mark old ones as Superseded.
+For each ACTIVE CRISIS file, identify which functions accumulated the most defect commits in the last 2 years. Use the git log + grep approach in [references/methodology.md — Function Drill-Down](references/methodology.md) when lizard is unavailable.
 
-## Credits
+Report per top function:
+- Defect commit count
+- Fix% — defect commits as share of total commits to that function
+- Dominant error class: Null, SQL/Perf, Notification, Concurrency, or Auth
 
-Hotspot analysis: Adam Tornhill, *Software Design X-Rays* (Pragmatic Bookshelf, 2018).
-C4 Model: Simon Brown — c4model.com
+## Step 6: Detect workflow deviations
+
+Find direct-to-master commits that bypass the hotfix branch. See [references/methodology.md — Workflow Deviations](references/methodology.md) for the exact command.
+
+Classify each commit as:
+- `direct_to_master` — commit on master not arriving via merge
+- `on_call_dtm` — direct-to-master during on-call hours
+- `training_only` — commit on training branch not mirrored to master
+
+## Step 7: Generate the HTML report
+
+All sections are required. Do not omit any.
+
+1. **Methodology box** — formula, weights, data sources, time window, commit count, branch scope
+2. **Top N matrix table** — all files above threshold, all component scores visible
+3. **Quadrant scatter chart** — ASCII or rendered, defect_score vs churn_score axes
+4. **Acceleration callouts** — files with acceleration > 1.5, with trend direction
+5. **ACTIVE CRISIS cards** — one card per crisis file: function-level table, fix-chain count, on-call incidents, last incident date, dominant error class
+6. **Fix-chain timeline** — top 3 files: chronological fix clusters with dates and inter-cluster gaps
+7. **Workflow deviation table** — all direct-to-master or on-call commits found
+8. **Maintenance mode banner** — if set: all ACTIVE WORK reclassifications made explicit
+
+Gate: Do not deliver the report if any ACTIVE CRISIS file is missing its function-level table. Run the drill-down first.
+
+## Anti-patterns (enforced, not advisory)
+
+- Never report a hotspot score without the component breakdown. A number without weights is not verifiable.
+- Never say "approximately N commits" — use the exact git command and report the exact count.
+- Never classify maintenance-mode churn as feature work or safe.
+- Never omit on-call commits — these are the highest-signal data points in the dataset.
+- Never claim a DI or architecture change fixes a performance problem without verifying the actual incident root cause. Dependency injection patterns do not fix N+1 queries or connection scope errors — those are query-structure problems independent of instantiation pattern.
+
+## Hard constraints
+
+These constraints derive from explicit session corrections and are not negotiable:
+
+1. Every claim cites a commit SHA or a specific data row. "Approximately" and "seems to" are not citations.
+2. When raw data and derived reports conflict, cite the raw data.
+3. Maintenance mode must be declared before interpretation begins.
+4. Architecture claims are bounded to what they actually fix — no scope inflation.
+5. Output in English regardless of session language.
+
+## Supporting files
+
+- [references/methodology.md](references/methodology.md) — exact git extraction commands, function drill-down approach, workflow deviation query
