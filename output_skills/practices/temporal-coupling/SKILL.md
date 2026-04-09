@@ -28,6 +28,8 @@ Gate: After verifying files exist, check whether `matrix.csv` contains any rows 
 
 Schema gate for `file_monthly.csv`: verify the first line (header) contains the word `file`. If the header instead contains `month_name`, `bug_commits_develop`, or similar project-wide columns, the wrong file is present. Halt with: "file_monthly.csv contains project-wide monthly data, not per-file data. Re-run /hotspot-analysis to regenerate it."
 
+Schema gate for `develop-backend.csv` and `develop-frontend.csv`: verify each file's header line contains the column `notification_commits`. If either header is missing it, the file was written by an older version of hotspot-analysis. Halt with: "`<filename>` was written by an older version of /hotspot-analysis and is missing the `notification_commits` column. Delete `.claude/hotspots/data/` and re-run /hotspot-analysis to regenerate the CSVs."
+
 Also confirm branch scope (e.g., `develop master training`) before running any additional queries.
 
 ## Step 1: Logical coupling — co-commit frequencies
