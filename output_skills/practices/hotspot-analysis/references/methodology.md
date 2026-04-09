@@ -173,6 +173,31 @@ Column order: `hash,date,message,author,day_of_week,hour,workflow_type,is_fix,fi
 
 `files_touched` and `lines_changed` require a per-commit `git show --stat`. For large repos, compute only for the most recent 200 on-call commits.
 
+After writing the CSV, update `error_class` for each row by cross-referencing each commit's touched files against `/tmp/dominant_class.txt` (built in the Dominant Class Lookup step above). Requires `/tmp/dominant_class.txt` to exist.
+
+```bash
+# Extract on-call hashes (skip header)
+tail -n +2 .claude/hotspots/oncall_commits.csv | cut -d',' -f1 > /tmp/oncall_hashes.txt
+
+# For each hash, resolve error_class from the files it touched
+> /tmp/oncall_hash_class.txt
+while IFS= read -r hash; do
+  cls=$(git show --name-only --format="" "$hash" 2>/dev/null \
+    | awk 'NR==FNR {dom[$1]=$2; next} ($0 in dom) && dom[$0]!="unknown" {print dom[$0]; exit}' \
+         /tmp/dominant_class.txt -)
+  echo "$hash ${cls:-unknown}"
+done < /tmp/oncall_hashes.txt > /tmp/oncall_hash_class.txt
+
+# Patch error_class column (column 13) in-place
+awk 'BEGIN{FS=OFS=","}
+     NR==FNR {cls[$1]=$2; next}
+     FNR==1 {print; next}
+     {$13 = ($1 in cls ? cls[$1] : "unknown"); print}
+' /tmp/oncall_hash_class.txt .claude/hotspots/oncall_commits.csv \
+> /tmp/oncall_updated.csv \
+&& mv /tmp/oncall_updated.csv .claude/hotspots/oncall_commits.csv
+```
+
 ---
 
 ## Step 2: Acceleration Guard
