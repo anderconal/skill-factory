@@ -103,7 +103,7 @@ Group by year. Identify:
 - How many times it recurred
 - What was patched each time vs what structural condition remained unchanged
 
-Gate: Do not claim a structural cause without demonstrating at least 2 separate year-instances of the same bug class. Two instances are coincidence. Three or more with the same bug class in the same month range is a pattern.
+Gate: Do not claim a structural cause without demonstrating at least 2 separate year-instances of the same bug class. Two instances with the same bug class in different years is sufficient for structural recurrence — content similarity (same error class, same fix pattern) is stronger evidence than timing alone. The higher 3-instance bar applies only to seasonal coupling (Step 2), where timing coincidences across two years are plausible without a structural explanation.
 
 ## Step 6: Root cause structural analysis
 
@@ -137,7 +137,7 @@ All sections are required. Do not omit any.
 
 - Never say correlation implies causation without checking co-commit rates. Two files both breaking in fire season with 0 co-commits are coincidental, not coupled.
 - Never claim architecture improvements fix performance problems without checking the actual incident root cause. DI patterns do not fix N+1 queries or connection scope errors — those are query-structure problems.
-- Never report a seasonal pattern from a single year-pair. Two instances are coincidence; three or more with the same bug class in the same month range is a pattern.
+- Never report a **seasonal coupling** (time-of-year recurrence) from fewer than three instances — timing coincidences across two years are plausible, so three or more with the same bug class in the same month range is required. Never report a **structural recurrence** without at least two year-instances of the same bug class — content similarity (same error class, same fix pattern) is stronger evidence than timing, so two instances suffice.
 - Never force a single coupling category when the evidence supports multiple. CAUSAL and SEASONAL can both apply to the same pair.
 - Never read from `/tmp/oncall_commits.txt` in this skill — always read from `.claude/hotspots/oncall_commits.csv`.
 
