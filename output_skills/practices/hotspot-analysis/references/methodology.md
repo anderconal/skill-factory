@@ -129,16 +129,18 @@ git log BRANCHES --format=format: --name-only \
 
 ```bash
 git log BRANCHES --format="%H|%ad|%s|%aN" --date=format:"%Y-%m-%d|%H|%w" \
-  | awk -F'|' '{
+  | awk -F'|' '
+    BEGIN { print "hash,date,message,author,day_of_week,hour,workflow_type,is_fix,files_touched,lines_changed,cherry_picked_to,is_revert,error_class" }
+    {
       h=$3+0; dow=$4;
       is_fix  = ($5 ~ /fix|bug|error|hotfix|patch/) ? 1 : 0;
       is_rev  = ($5 ~ /^[Rr]evert/) ? 1 : 0;
       if (dow==0 || dow==6 || h>=22 || h<6)
-        print $1 "|" $2 "|" $5 "|" $6 "|" dow "|" $3 "|direct|" is_fix "|0|0||" is_rev "|unknown"
-    }' > /tmp/oncall_raw.txt
+        print $1 "," $2 "," $5 "," $6 "," dow "," $3 ",direct," is_fix ",0,0,," is_rev ",unknown"
+    }' > .claude/hotspots/oncall_commits.csv
 ```
 
-Column order: `hash|date|message|author|day_of_week|hour|workflow_type|is_fix|files_touched|lines_changed|cherry_picked_to|is_revert|error_class`
+Column order: `hash,date,message,author,day_of_week,hour,workflow_type,is_fix,files_touched,lines_changed,cherry_picked_to,is_revert,error_class`
 
 `files_touched` and `lines_changed` require a per-commit `git show --stat`. For large repos, compute only for the most recent 200 on-call commits.
 

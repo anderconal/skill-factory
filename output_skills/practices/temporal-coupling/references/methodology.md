@@ -76,9 +76,10 @@ Gaps in the 200–500 day range are seasonal candidates. Verify both incidents s
 Read on-call incident hashes from `.claude/hotspots/oncall_commits.csv` (column 1 = hash). Do NOT read from `/tmp/oncall_commits.txt` — the column formats are incompatible.
 
 ```bash
-# Extract hashes from the CSV (skip header line)
+# Extract hashes from the CSV (skip header line, strip Windows CRLF)
 tail -n +2 .claude/hotspots/oncall_commits.csv \
-| cut -d'|' -f1 \
+| cut -d',' -f1 \
+| tr -d '\r' \
 | while read hash; do
     git show --name-only --format="%H|%ad" --date=short "$hash" 2>/dev/null
   done
