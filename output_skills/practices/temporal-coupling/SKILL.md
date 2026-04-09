@@ -37,7 +37,6 @@ For each pair of ACTIVE CRISIS files, count commits that touched both simultaneo
 Report per pair:
 - Co-commit count (exact)
 - Percentage of the smaller file's history that includes the pair
-- Direction of dependency — which file changes first when they co-change
 
 Coupling threshold: ≥10 co-commits OR ≥30% of either file's commit history = structurally coupled. Below = coincidental.
 
