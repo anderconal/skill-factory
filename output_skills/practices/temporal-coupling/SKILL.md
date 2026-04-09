@@ -20,9 +20,11 @@ Verify these files exist and are non-empty before running any step:
 - `.claude/hotspots/matrix.csv`
 - `.claude/hotspots/fix_chains.csv`
 - `.claude/hotspots/oncall_commits.csv`
-- `.claude/hotspots/seasonal.csv`
+- `.claude/hotspots/file_monthly.csv`
 
 Gate: If any file is missing or empty, halt with a clear error message. Do not substitute ad-hoc git log queries — the CSVs contain pre-classified data that git log alone cannot reconstruct.
+
+Schema gate for `file_monthly.csv`: verify the first line (header) contains the word `file`. If the header instead contains `month_name`, `bug_commits_develop`, or similar project-wide columns, the wrong file is present. Halt with: "file_monthly.csv contains project-wide monthly data, not per-file data. Re-run /hotspot-analysis to regenerate it."
 
 Also confirm branch scope (e.g., `develop master training`) before running any additional queries.
 

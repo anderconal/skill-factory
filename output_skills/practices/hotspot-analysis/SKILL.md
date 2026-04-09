@@ -62,7 +62,7 @@ Log normalization prevents a single outlier from compressing all other scores to
 Additional derived metrics:
 - **Acceleration**: `defect_6m / defect_712m`. If `defect_712m == 0`, mark as `"new"` — do not divide by zero.
 - **recency_ratio_defect**: `defect_6m / defect_total`
-- **peak_month**: month with the highest defect commit count (from monthly breakdown in seasonal.csv)
+- **peak_month**: month with the highest defect commit count (from monthly breakdown in file_monthly.csv — ACTIVE CRISIS files only)
 - **On-call weight**: `log(1 + oncall_count) / log(1 + max_oncall) × 3`
 
 Gate: Show the formula, intermediate normalized values (norm_defect, norm_churn, norm_oncall), and the final score together. A number without component breakdown cannot be challenged or verified.
@@ -138,7 +138,7 @@ Files to write — use the exact column schemas in [references/methodology.md �
 - `.claude/hotspots/matrix.csv` — scored matrix with quadrant (from Steps 2–3)
 - `.claude/hotspots/fix_chains.csv` — fix-level records, one row per defect commit per file (from Step 4)
 - `.claude/hotspots/oncall_commits.csv` — classified on-call commits, full 13-column schema (from Step 1)
-- `.claude/hotspots/seasonal.csv` — monthly defect aggregates (from Step 1)
+- `.claude/hotspots/file_monthly.csv` — per-file monthly defect counts for ACTIVE CRISIS files (from Step 1)
 - `.claude/hotspots/workflow_deviations.csv` — deviation records (from Step 6)
 
 Gate: If any file cannot be written, halt and report the error before proceeding. `/temporal-coupling` will fail its prerequisite gate if any file is missing.

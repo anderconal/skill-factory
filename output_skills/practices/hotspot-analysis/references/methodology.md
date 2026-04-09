@@ -2,7 +2,7 @@
 
 Replace `BRANCHES` with the confirmed branch scope (e.g., `develop master training`).
 
-All history is extracted by default. Time-weighted scoring (Step 2) gives recent months higher importance; extracting all history lets the monthly breakdown in seasonal.csv reveal multi-year patterns that would otherwise be invisible.
+All history is extracted by default. Time-weighted scoring (Step 2) gives recent months higher importance; extracting all history lets the monthly breakdown in file_monthly.csv reveal multi-year patterns that would otherwise be invisible.
 
 ---
 
@@ -82,21 +82,23 @@ Dominant error class per file = the class with the highest count. Report all fiv
 
 ---
 
-## Step 1: Monthly Breakdown (seasonal.csv)
+## Step 1: Monthly Breakdown (file_monthly.csv)
 
-Covers all history. One row per file × month.
+Covers all history. One row per file × month. Run for each ACTIVE CRISIS file (peak_month is only reported in ACTIVE CRISIS cards, so full-history extraction for non-crisis files is not required).
 
 ```bash
 # For each ACTIVE CRISIS file, get monthly defect commit counts:
 git log BRANCHES --format="%ad" --date=format:"%Y-%m" \
   --grep="$DEFECT_GREP" -i -- <file> \
   | sort | uniq -c \
-  | awk '{print "<file>," $2 "," $1}' >> /tmp/seasonal_raw.txt
+  | awk -v f="<file>" '{print f "," $2 "," $1 ",unknown"}' >> /tmp/file_monthly_raw.txt
 ```
 
-Run for each ACTIVE CRISIS file. Aggregate into seasonal.csv (see schema below).
+After running for all ACTIVE CRISIS files, write the result to `.claude/hotspots/file_monthly.csv` with the header `file,year_month,defect_count,dominant_bug_class`.
 
-peak_month = the YYYY-MM row with the highest count for that file.
+`dominant_bug_class` is the file-level dominant error class (null/sql/notification/concurrency/auth) from the error class extraction — apply the same value to every month row for that file.
+
+peak_month = the year_month row with the highest defect_count for that file.
 
 ---
 
@@ -259,13 +261,15 @@ is_fix, files_touched, lines_changed, cherry_picked_to, is_revert, error_class
 `workflow_type` values: `direct`, `merge`, `cherry-pick`
 `error_class` values: `null`, `sql`, `notification`, `concurrency`, `auth`, `unknown`
 
-### seasonal.csv
+### file_monthly.csv
 
 ```
 file, year_month, defect_count, dominant_bug_class
 ```
 
-Covers all history. One row per file × month. Used for peak_month computation and seasonal gap detection.
+One row per ACTIVE CRISIS file × month, covering all history. Used for peak_month computation and seasonal gap detection.
+
+Note: this is distinct from any project-wide monthly summary file (e.g., `seasonal.csv`) that may already exist in the repo. Do not overwrite such a file — write only to `.claude/hotspots/file_monthly.csv`.
 
 ### workflow_deviations.csv
 
