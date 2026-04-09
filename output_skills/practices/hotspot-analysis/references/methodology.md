@@ -173,6 +173,36 @@ Column order: `hash,date,message,author,day_of_week,hour,workflow_type,is_fix,fi
 
 `files_touched` and `lines_changed` require a per-commit `git show --stat`. For large repos, compute only for the most recent 200 on-call commits.
 
+```bash
+# Extract the most recent 200 on-call hashes
+tail -n +2 .claude/hotspots/oncall_commits.csv | cut -d',' -f1 | head -200 > /tmp/oncall_200.txt
+
+# For each hash: git show --stat --format="" <hash> | tail -1
+# Output: " N files changed, M insertions(+), K deletions(-)"
+> /tmp/oncall_stat.txt
+while IFS= read -r hash; do
+  git show --stat --format="" "$hash" 2>/dev/null | tail -1 \
+  | awk -v h="$hash" '{
+      files=0; lines=0
+      for (i=1; i<=NF; i++) {
+        if ($i~/^[0-9]+$/ && $(i+1)~/^file/)      files=$i+0
+        if ($i~/^[0-9]+$/ && $(i+1)~/^insertion/) lines+=$i+0
+        if ($i~/^[0-9]+$/ && $(i+1)~/^deletion/)  lines+=$i+0
+      }
+      print h, files, lines
+    }' >> /tmp/oncall_stat.txt
+done < /tmp/oncall_200.txt
+
+# Patch files_touched (col 9) and lines_changed (col 10) in-place
+awk 'BEGIN{FS=OFS=","}
+     FILENAME=="/tmp/oncall_stat.txt" {split($0,a," "); ft[a[1]]=a[2]; lc[a[1]]=a[3]; next}
+     FNR==1  {print; next}
+     {if ($1 in ft) {$9=ft[$1]; $10=lc[$1]}; print}
+' /tmp/oncall_stat.txt .claude/hotspots/oncall_commits.csv \
+> /tmp/oncall_statted.csv \
+&& mv /tmp/oncall_statted.csv .claude/hotspots/oncall_commits.csv
+```
+
 After writing the CSV, update `error_class` for each row by cross-referencing each commit's touched files against `/tmp/dominant_class.txt` (built in the Dominant Class Lookup step above). Requires `/tmp/dominant_class.txt` to exist.
 
 ```bash
