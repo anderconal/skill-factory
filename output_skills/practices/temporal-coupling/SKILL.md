@@ -1,8 +1,7 @@
 ---
 name: temporal-coupling
 description: Classifies file pairs as causal, seasonal, structural-recurrence, or coincidental using co-commit frequencies and inter-incident gap analysis. Run after /hotspot-analysis to explain WHY hotspot files keep breaking together.
-disable-model-invocation: true
-allowed-tools: Bash
+allowed-tools: Bash, Write, Read
 ---
 
 STARTER_CHARACTER = 🔗
@@ -13,21 +12,25 @@ Answers WHY ACTIVE CRISIS files keep breaking — distinguishing accidental co-o
 
 ## Prerequisite
 
-Requires hotspot data in `.claude/hotspots/data/`. If not present, run `/hotspot-analysis` first.
+Requires hotspot data in `.claude/hotspots/`. If not present, run `/hotspot-analysis` first.
 
-Required CSV files:
-- `develop-backend.csv` / `develop-frontend.csv`
-- `fix_chains.csv`
-- `oncall_commits.csv`
-- `seasonal.csv`
+Verify these files exist and are non-empty before running any step:
+- `.claude/hotspots/data/develop-backend.csv`
+- `.claude/hotspots/data/develop-frontend.csv`
+- `.claude/hotspots/matrix.csv`
+- `.claude/hotspots/fix_chains.csv`
+- `.claude/hotspots/oncall_commits.csv`
+- `.claude/hotspots/seasonal.csv`
 
-Gate: Verify all files exist and are non-empty before proceeding. If any are missing, halt with a clear error message. Do not substitute ad-hoc git log queries — the CSVs contain pre-classified data that git log alone cannot reconstruct.
+Gate: If any file is missing or empty, halt with a clear error message. Do not substitute ad-hoc git log queries — the CSVs contain pre-classified data that git log alone cannot reconstruct.
 
-Also confirm branch scope (e.g., `develop master training`) before running any queries.
+Also confirm branch scope (e.g., `develop master training`) before running any additional queries.
 
 ## Step 1: Logical coupling — co-commit frequencies
 
-For each pair of ACTIVE CRISIS files, count commits that touched both simultaneously. Use the exact command in [references/methodology.md — Co-Commit Query](references/methodology.md).
+Read the ACTIVE CRISIS file list from `.claude/hotspots/matrix.csv` filtering on `quadrant == ACTIVE CRISIS`. Do not derive this list from git — use the pre-scored matrix.
+
+For each pair of ACTIVE CRISIS files, count commits that touched both simultaneously. Use the single-pass awk command in [references/methodology.md — Co-Commit Query](references/methodology.md). Do not use the shell loop variant (`while read hash; do git show...`) — it spawns one subprocess per commit and is prohibitively slow on large repos.
 
 Report per pair:
 - Co-commit count (exact)
@@ -40,7 +43,7 @@ Gate: Report both the raw count AND the percentage. 10 co-commits in a 200-commi
 
 ## Step 2: Seasonal coupling — the 300–400 day pattern
 
-For each ACTIVE CRISIS file, extract defect commit dates and compute inter-incident gaps. Use the exact awk command in [references/methodology.md — Seasonal Gap Query](references/methodology.md).
+For each ACTIVE CRISIS file, extract defect commit dates and compute inter-incident gaps using the portable awk day-counter in [references/methodology.md — Seasonal Gap Detection](references/methodology.md). Do not use the awk mktime approach — mktime is GNU awk only and is unavailable in Git Bash on Windows, where it silently produces no output.
 
 Flag gaps in the 200–500 day range as seasonal candidates.
 
@@ -56,7 +59,9 @@ Gate: Do not label a gap "seasonal" without verifying the two incidents share th
 
 A temporal chain = a sequence of fixes across different files within ≤15 days where each fix exposes a new problem revealed by the previous fix.
 
-Look for on-call window overlaps across ACTIVE CRISIS files. Use the command in [references/methodology.md — Temporal Chain Query](references/methodology.md).
+Read on-call incident data from `.claude/hotspots/oncall_commits.csv` (the 13-column CSV written by hotspot-analysis). Do not read from `/tmp/oncall_commits.txt` — the formats are incompatible.
+
+Use the temporal chain command in [references/methodology.md — Temporal Chain Query](references/methodology.md).
 
 Report per chain:
 - Files in sequence order
@@ -68,7 +73,7 @@ Gate: A chain requires minimum 3 fixes across 2+ files. A single multi-file comm
 
 ## Step 4: Classify each coupling
 
-For every file pair from Steps 1–2, produce an explicit verdict with evidence:
+For every file pair from Steps 1–2, produce an explicit verdict with evidence. Multiple tags are valid — a file pair can be both CAUSAL (high co-commit rate) and SEASONAL (same bug class recurring 300+ days later under load). Tag all that apply; do not force a single category.
 
 **CAUSAL**
 Criteria: high co-commit rate + confirmed temporal chains + architectural dependency.
@@ -112,16 +117,18 @@ Gate: The root cause section must be grounded in the bug class table from Step 5
 
 ## Step 7: Generate the HTML report
 
+Use the same dark CSS theme as hotspot-analysis (see [references/methodology.md — HTML Theme](references/methodology.md)) so both reports are visually consistent.
+
 All sections are required. Do not omit any.
 
 1. **The central question** — stated explicitly (e.g., "Does fixing X cause Y to break later?")
 2. **Data sources box** — which CSV files, which git log range, commit count
-3. **Two-mechanism summary** — dominant cause vs secondary cause, both with percentage estimates backed by data
+3. **Two-mechanism summary** — compute symptom-patching rate and coupling-induced rate using the methodology in [references/methodology.md — Two-Mechanism Percentage](references/methodology.md). Both must have backing numbers from the CSVs, not estimates.
 4. **Logical coupling bar chart** — co-commit counts for top pairs, percentage of history shown
 5. **Seasonal coupling section** — per-year breakdown, gaps in days, confirmed recurrences
 6. **Confirmed temporal chains** — one visual chain per incident: node per file, gap label between nodes, on-call indicator
 7. **Recurring bug class table** — all years, root structural cause per class
-8. **Verdict table** — causal/seasonal/structural/coincidental per pair, with evidence column
+8. **Verdict table** — one row per file pair, tags column (multiple tags allowed), evidence column
 9. **Root cause section** — ordered by confidence, backed by post-2023 evidence only if confirmed
 10. **Raw counts appendix** — commit totals per file, on-call pattern breakdown, quarterly trend table
 
@@ -130,18 +137,17 @@ All sections are required. Do not omit any.
 - Never say correlation implies causation without checking co-commit rates. Two files both breaking in fire season with 0 co-commits are coincidental, not coupled.
 - Never claim architecture improvements fix performance problems without checking the actual incident root cause. DI patterns do not fix N+1 queries or connection scope errors — those are query-structure problems.
 - Never report a seasonal pattern from a single year-pair. Two instances are coincidence; three or more with the same bug class in the same month range is a pattern.
-- Never combine logical-coupling and seasonal-coupling verdicts in one finding. They are different mechanisms with different evidence requirements.
+- Never force a single coupling category when the evidence supports multiple. CAUSAL and SEASONAL can both apply to the same pair.
+- Never read from `/tmp/oncall_commits.txt` in this skill — always read from `.claude/hotspots/oncall_commits.csv`.
 
 ## Hard constraints
-
-These constraints derive from explicit session corrections and are not negotiable:
 
 1. Every claim cites a commit SHA or a specific CSV row. "Approximately" and "seems to" are not citations.
 2. Raw CSVs take precedence over derived reports — if they conflict, cite the CSV.
 3. Maintenance mode must be declared before interpretation begins.
 4. Architecture claims are bounded to what they actually fix — no scope inflation.
 5. Output in English regardless of session language.
-6. Causal, seasonal, structural-recurrence, and coincidental are distinct categories with different evidence requirements. Do not mix them in one verdict.
+6. ACTIVE CRISIS file list always comes from `.claude/hotspots/matrix.csv` — never derived ad hoc.
 
 ## Workflow position
 
@@ -149,4 +155,4 @@ Runs after `/hotspot-analysis`. Hotspot analysis identifies WHICH files are risk
 
 ## Supporting files
 
-- [references/methodology.md](references/methodology.md) — exact git commands for co-commit analysis, seasonal gap detection, temporal chain extraction, and bug class grouping
+- [references/methodology.md](references/methodology.md) — Python co-commit query, seasonal gap detection, temporal chain extraction, two-mechanism percentage computation, bug class grouping, HTML theme

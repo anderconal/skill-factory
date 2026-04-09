@@ -1,54 +1,163 @@
-# Hotspot Analysis — Exact Extraction Commands
+# Hotspot Analysis — Extraction Commands and Schemas
 
 Replace `BRANCHES` with the confirmed branch scope (e.g., `develop master training`).
 
+All history is extracted by default. Time-weighted scoring (Step 2) gives recent months higher importance; extracting all history lets the monthly breakdown in seasonal.csv reveal multi-year patterns that would otherwise be invisible.
+
 ---
 
-## Step 1: Extraction Commands
+## Step 1: Churn Extraction
 
 ```bash
-# 1. Churn — all history across branches
-git log BRANCHES --format=format: --name-only | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_total.txt
-
-# 2. Churn — last 6 months
-git log BRANCHES --since="6 months ago" --format=format: --name-only | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_6m.txt
-
-# 3. Churn — 7–12 months ago (prior window for acceleration)
-git log BRANCHES --since="12 months ago" --until="6 months ago" --format=format: --name-only | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_712m.txt
-
-# 4. Defect commits — all history
+# All history
 git log BRANCHES --format=format: --name-only \
-  --grep="fix\|bug\|error\|hotfix\|patch\|revert\|crash\|broken\|null\|fail" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_total.txt
+
+# Last 6 months
+git log BRANCHES --since="6 months ago" --format=format: --name-only \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_6m.txt
+
+# 7–12 months ago
+git log BRANCHES --since="12 months ago" --until="6 months ago" --format=format: --name-only \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/churn_712m.txt
+```
+
+`churn_older = churn_total − churn_6m − churn_712m` (computed in Step 2 — do not extract separately).
+
+---
+
+## Step 1: Defect Extraction
+
+```bash
+DEFECT_GREP="fix\|bug\|error\|hotfix\|patch\|revert\|crash\|broken\|null\|fail"
+
+# All history
+git log BRANCHES --format=format: --name-only --grep="$DEFECT_GREP" -i \
   | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/defects_total.txt
 
-# 5. Defects — last 6 months
-git log BRANCHES --since="6 months ago" --format=format: --name-only \
-  --grep="fix\|bug\|error\|hotfix\|patch\|revert\|crash\|broken\|null\|fail" -i \
+# Last 6 months
+git log BRANCHES --since="6 months ago" --format=format: --name-only --grep="$DEFECT_GREP" -i \
   | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/defects_6m.txt
 
-# 6. Defects — 7–12 months ago
-git log BRANCHES --since="12 months ago" --until="6 months ago" --format=format: --name-only \
-  --grep="fix\|bug\|error\|hotfix\|patch\|revert\|crash\|broken\|null\|fail" -i \
+# 7–12 months ago
+git log BRANCHES --since="12 months ago" --until="6 months ago" \
+  --format=format: --name-only --grep="$DEFECT_GREP" -i \
   | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/defects_712m.txt
-
-# 7. On-call commits — weekends (dow 0 or 6) and overnight (22:00–05:59)
-git log BRANCHES --format="%H|%ad|%s" --date=format:"%Y-%m-%d %H:%M:%S %w" \
-  | awk -F'|' '{
-      split($2,d," ");
-      h=substr(d[2],1,2)+0;
-      dow=d[3];
-      if (dow==0 || dow==6 || h>=22 || h<6) print $0
-    }' > /tmp/oncall_commits.txt
-
-# 8. Reverts
-git log BRANCHES --format="%H %s" --grep="^[Rr]evert" | head -20 > /tmp/reverts.txt
 ```
 
 ---
 
-## Fix-Chain Extraction
+## Step 1: Error Class Extraction
 
-For each ACTIVE CRISIS file, run:
+Run one command per class. These produce the null_commits, sql_commits, etc. columns in the matrix.
+
+```bash
+# Null / undefined errors
+git log BRANCHES --format=format: --name-only \
+  --grep="null\|undefined\|NullReference\|unloaded\|LoadWith" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/error_null.txt
+
+# SQL / performance errors
+git log BRANCHES --format=format: --name-only \
+  --grep="sql\|query\|performance\|N+1\|slow\|timeout\|connection\|index" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/error_sql.txt
+
+# Notification / email errors
+git log BRANCHES --format=format: --name-only \
+  --grep="notif\|email\|smtp\|notification\|SendNotif" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/error_notification.txt
+
+# Concurrency errors
+git log BRANCHES --format=format: --name-only \
+  --grep="deadlock\|race\|concurrent\|thread\|async\|lock\|mutex" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/error_concurrency.txt
+
+# Auth / permission errors
+git log BRANCHES --format=format: --name-only \
+  --grep="auth\|permission\|unauthorized\|forbidden\|access\|401\|403" -i \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/error_auth.txt
+```
+
+Dominant error class per file = the class with the highest count. Report all five values in the matrix.
+
+---
+
+## Step 1: Monthly Breakdown (seasonal.csv)
+
+Covers all history. One row per file × month.
+
+```bash
+# For each ACTIVE CRISIS file, get monthly defect commit counts:
+git log BRANCHES --format="%ad" --date=format:"%Y-%m" \
+  --grep="$DEFECT_GREP" -i -- <file> \
+  | sort | uniq -c \
+  | awk '{print "<file>," $2 "," $1}' >> /tmp/seasonal_raw.txt
+```
+
+Run for each ACTIVE CRISIS file. Aggregate into seasonal.csv (see schema below).
+
+peak_month = the YYYY-MM row with the highest count for that file.
+
+---
+
+## Step 1: Unique Authors per File
+
+```bash
+# For a specific file:
+git log BRANCHES --format="%aN" -- <file> | sort -u | wc -l
+
+# For all candidate files at once:
+git log BRANCHES --format="%H %aN" \
+  | sort -u \
+  | awk '{print $2, $1}' > /tmp/commit_authors.txt
+# Then cross-reference with per-file commit lists.
+```
+
+---
+
+## Step 1: Reverts per File
+
+```bash
+git log BRANCHES --format=format: --name-only \
+  --grep="^[Rr]evert" \
+  | grep -v '^$' | sort | uniq -c | sort -rn > /tmp/reverts_by_file.txt
+```
+
+---
+
+## Step 1: On-Call Commits (13-column CSV)
+
+```bash
+git log BRANCHES --format="%H|%ad|%s|%aN" --date=format:"%Y-%m-%d|%H|%w" \
+  | awk -F'|' '{
+      h=$3+0; dow=$4;
+      is_fix  = ($5 ~ /fix|bug|error|hotfix|patch/) ? 1 : 0;
+      is_rev  = ($5 ~ /^[Rr]evert/) ? 1 : 0;
+      if (dow==0 || dow==6 || h>=22 || h<6)
+        print $1 "|" $2 "|" $5 "|" $6 "|" dow "|" $3 "|direct|" is_fix "|0|0||" is_rev "|unknown"
+    }' > /tmp/oncall_raw.txt
+```
+
+Column order: `hash|date|message|author|day_of_week|hour|workflow_type|is_fix|files_touched|lines_changed|cherry_picked_to|is_revert|error_class`
+
+`files_touched` and `lines_changed` require a per-commit `git show --stat`. For large repos, compute only for the most recent 200 on-call commits.
+
+---
+
+## Step 2: Acceleration Guard
+
+```
+if defect_712m == 0:
+    acceleration = "new"   # file had no defects 7–12 months ago — flag separately
+else:
+    acceleration = defect_6m / defect_712m
+```
+
+Files marked "new" are in active escalation and should appear in the acceleration callouts regardless of their absolute score.
+
+---
+
+## Fix-Chain Extraction
 
 ```bash
 git log BRANCHES --format="%H|%ad|%s" --date=short \
@@ -56,13 +165,13 @@ git log BRANCHES --format="%H|%ad|%s" --date=short \
 | awk -F'|' '{print $2, $1, $3}' | sort
 ```
 
-Cluster = ≥3 defect commits within ≤15 days. Count them; do not estimate.
+Cluster = ≥3 defect commits within ≤15 days. Count exactly; do not estimate.
 
 ---
 
 ## Function Drill-Down
 
-When lizard is not available, use git log + grep to find which functions received the most defect-related changes in the past 2 years:
+When lizard is not available:
 
 ```bash
 git log --since="2 years ago" --format=format: -p -- <file> \
@@ -70,18 +179,94 @@ git log --since="2 years ago" --format=format: -p -- <file> \
 | sort | uniq -c | sort -rn | head -20
 ```
 
-Report per function: count, fix% (defect commits to that function / total commits), dominant error class.
-
 ---
 
 ## Workflow Deviations
 
 ```bash
-# Direct-to-master commits (not arriving via merge)
-git log master --format="%H|%ad|%s|%an" --date=short | grep -v "Merge" | head -30
+git log master --format="%H|%ad|%s|%aN" --date=short | grep -v "Merge" | head -30
 ```
 
-Classify each:
-- `direct_to_master` — commit on master not from a merge
-- `on_call_dtm` — direct-to-master AND timestamp falls in on-call window
-- `training_only` — commit on training branch with no equivalent on master
+Classify each: `direct_to_master`, `on_call_dtm`, `training_only`. Write to `workflow_deviations.csv`.
+
+---
+
+## CSV Schemas
+
+### develop-backend.csv / develop-frontend.csv
+
+```
+file, churn_total, churn_6m, churn_712m, churn_older,
+defect_total, defect_6m, defect_712m, defect_older,
+oncall_count, unique_authors, revert_count,
+null_commits, sql_commits, notification_commits, concurrency_commits, auth_commits,
+peak_month, recency_ratio_defect
+```
+
+### matrix.csv
+
+All columns from above, plus:
+
+```
+weighted_churn, weighted_defect,
+norm_churn, norm_defect, norm_oncall, norm_author,
+hotspot_score, acceleration, quadrant
+```
+
+### fix_chains.csv
+
+```
+file, cluster_id, start_date, end_date, length_days, commit_count, includes_oncall
+```
+
+### oncall_commits.csv (13 columns)
+
+```
+hash, date, message, author, day_of_week, hour, workflow_type,
+is_fix, files_touched, lines_changed, cherry_picked_to, is_revert, error_class
+```
+
+`workflow_type` values: `direct`, `merge`, `cherry-pick`
+`error_class` values: `null`, `sql`, `notification`, `concurrency`, `auth`, `unknown`
+
+### seasonal.csv
+
+```
+file, year_month, defect_count, dominant_bug_class
+```
+
+Covers all history. One row per file × month. Used for peak_month computation and seasonal gap detection.
+
+### workflow_deviations.csv
+
+```
+hash, date, author, message, classification
+```
+
+---
+
+## HTML Theme
+
+Both hotspot-analysis and temporal-coupling must use the same CSS:
+
+```css
+:root {
+  --dark:   #1a1a2e;
+  --panel:  #252542;
+  --border: #3d3d5c;
+  --text:   #e0e0e0;
+  --red:    #c0392b;
+  --orange: #e67e22;
+  --yellow: #f1c40f;
+  --green:  #27ae60;
+  --blue:   #2980b9;
+}
+
+.tag.causal      { background: var(--red); color: #fff; }
+.tag.seasonal    { background: var(--orange); color: #fff; }
+.tag.structural  { background: var(--yellow); color: #000; }
+.tag.coincidental{ background: var(--panel); color: var(--text); }
+.chain-node.oncall { border: 2px solid var(--red); }
+```
+
+Apply these to verdict badges, chain nodes, and quadrant labels throughout both reports.
