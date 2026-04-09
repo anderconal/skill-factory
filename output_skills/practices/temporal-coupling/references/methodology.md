@@ -76,14 +76,14 @@ Gaps in the 200–500 day range are seasonal candidates. Verify both incidents s
 Read on-call incident hashes from `.claude/hotspots/oncall_commits.csv` (column 1 = hash). Do NOT read from `/tmp/oncall_commits.txt` — the column formats are incompatible.
 
 ```bash
-# Extract hashes from the CSV (skip header line, strip Windows CRLF)
+# Single-pass: pipe all hashes to one git log invocation (O(1) subprocess spawns)
 tail -n +2 .claude/hotspots/oncall_commits.csv \
 | cut -d',' -f1 \
 | tr -d '\r' \
-| while read hash; do
-    git show --name-only --format="%H|%ad" --date=short "$hash" 2>/dev/null
-  done
+| xargs git log --no-walk --name-only --format="COMMIT:%H|%ad" --date=short 2>/dev/null
 ```
+
+Performance note: this is O(1) subprocess spawns vs O(n) for the `while read hash; do git show...` pattern — the same reason the Co-Commit Query bans that pattern. `oncall_commits.csv` is typically small (50–100 rows), but the approach is consistent and avoids the ban.
 
 Cross-reference the dates and file lists to find clusters: ≥3 fixes across 2+ files within 15 days. A single multi-file commit is not a chain — it is a large changeset.
 
