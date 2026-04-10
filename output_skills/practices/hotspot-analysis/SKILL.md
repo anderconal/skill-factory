@@ -80,10 +80,12 @@ Gate: Show the formula, all intermediate values (weighted_defect, weighted_churn
 
 Use percentile rank within the dataset. Fixed thresholds (e.g., ≥ 0.5) break on well-maintained codebases where every score falls below the cutoff and nothing is classified.
 
-- **ACTIVE CRISIS** — defect_score in top 25% of dataset
-- **DORMANT DEBT** — defect_score in top 25%, churn_score in bottom 50%
-- **ACTIVE WORK** — churn_score in top 25%, defect_score in bottom 50%
-- **SAFE ZONE** — all remaining files
+Evaluate in this order — each category is tested in sequence; the first match wins:
+
+1. **DORMANT DEBT** — defect_score in top 25%, churn_score in bottom 50%
+2. **ACTIVE CRISIS** — defect_score in top 25% (churn not in bottom 50%)
+3. **ACTIVE WORK** — churn_score in top 25%, defect_score in bottom 50%
+4. **SAFE ZONE** — all remaining files
 
 **Maintenance mode override**: ACTIVE WORK does NOT mean safe. Reclassify as **MAINTENANCE INCIDENT RESPONSE** — churn in maintenance mode equals repeated emergency patching with non-standard commit messages, not feature development.
 
@@ -136,7 +138,7 @@ All sections are required. Do not omit any.
 7. **Workflow deviation table** — all direct-to-master or on-call commits found
 8. **Maintenance mode banner** — if set: all ACTIVE WORK reclassifications made explicit
 
-Gate: Do not deliver the report if any ACTIVE CRISIS file is missing its function-level table. Run the drill-down first.
+Gate: Do not deliver the report if any ACTIVE CRISIS file's function-level drill-down was not executed. Empty results from the drill-down are valid — they mean no function-level signal was detectable.
 
 ## Step 8: Persist structured CSVs
 
