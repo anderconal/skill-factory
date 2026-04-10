@@ -134,12 +134,6 @@ peak_month = the year_month row with the highest defect_count for that file.
 ```bash
 # For a specific file:
 git log BRANCHES --format="%aN" -- <file> | sort -u | wc -l
-
-# For all candidate files at once:
-git log BRANCHES --format="%H %aN" \
-  | sort -u \
-  | awk '{print $2, $1}' > /tmp/commit_authors.txt
-# Then cross-reference with per-file commit lists.
 ```
 
 ---
@@ -162,6 +156,7 @@ git log BRANCHES --format="%H|%ad|%s|%aN" --date=format:"%Y-%m-%d|%H|%w" \
     BEGIN { print "hash,date,message,author,day_of_week,hour,workflow_type,is_fix,files_touched,lines_changed,cherry_picked_to,is_revert,error_class" }
     {
       h=$3+0; dow=$4;
+      gsub(/,/, " ", $5)
       is_fix  = ($5 ~ /fix|bug|error|hotfix|patch/) ? 1 : 0;
       is_rev  = ($5 ~ /^[Rr]evert/) ? 1 : 0;
       if (dow==0 || dow==6 || h>=22 || h<6)
@@ -248,11 +243,14 @@ Files marked "new" are in active escalation and should appear in the acceleratio
 One row per defect commit, sorted by date ascending. Run once per ACTIVE CRISIS file and append to `.claude/hotspots/fix_chains.csv`.
 
 ```bash
+# Write header first — overwrites any existing file to prevent doubled rows on re-run
+echo "file,fix_date,commit_hash,was_oncall,days_since_previous_fix,branch,workflow_deviation,notes" \
+  > .claude/hotspots/fix_chains.csv
 FILE="<file>"
 git log BRANCHES --format="%H|%ad|%s" --date=format:"%Y-%m-%d|%H|%w" \
   --grep="fix\|bug\|error\|hotfix\|patch" -i -- "$FILE" \
 | sort -t'|' -k2 \
-| awk -F'|' -v file="$FILE" '
+| awk -F'|' -v file="$FILE" -v branch="$BRANCHES" '
   function to_days(d,   y,m,dd,i,tot,ml) {
     y=substr(d,1,4)+0; m=substr(d,6,2)+0; dd=substr(d,9,2)+0
     split("31,28,31,30,31,30,31,31,30,31,30,31",ml,",")
@@ -265,9 +263,9 @@ git log BRANCHES --format="%H|%ad|%s" --date=format:"%Y-%m-%d|%H|%w" \
   {
     hash=$1; date=$2; hour=$3+0; dow=$4+0; msg=$5
     gsub(/,/, " ", msg)
-    is_oncall = (dow==0 || dow==6 || hour>=22 || hour<6) ? 1 : 0
+    is_oncall = (dow==0 || dow==6 || hour>=22 || hour<6) ? "true" : "false"
     gap = (prev_date == "") ? "" : (to_days(date) - to_days(prev_date))
-    print file, date, hash, is_oncall, gap, "BRANCHES", "normal", msg
+    print file, date, hash, is_oncall, gap, branch, "normal", msg
     prev_date = date
   }
 ' >> .claude/hotspots/fix_chains.csv
@@ -283,7 +281,7 @@ When lizard is not available:
 
 ```bash
 git log --since="2 years ago" --format=format: -p -- <file> \
-| grep "^+.*function\|^+.*def \|^+.*public.*(" \
+| grep "^+.*function\|^+.*def \|^+.*public.*(\|^+[[:space:]]*[a-zA-Z][a-zA-Z0-9]*[[:space:]]*(" \
 | sort | uniq -c | sort -rn | head -20
 ```
 
@@ -292,7 +290,7 @@ git log --since="2 years ago" --format=format: -p -- <file> \
 ## Workflow Deviations
 
 ```bash
-git log master --format="%H|%ad|%s|%aN" --date=short | grep -v "Merge" | head -30
+git log master --first-parent --no-merges --format="%H|%ad|%s|%aN" --date=short | head -30
 ```
 
 Classify each: `direct_to_master`, `on_call_dtm`, `training_only`. Write to `workflow_deviations.csv`.
@@ -331,7 +329,7 @@ file, fix_date, commit_hash, was_oncall, days_since_previous_fix, branch, workfl
 ```
 
 `days_since_previous_fix` — empty string for the first fix of each file; integer days for all subsequent rows.
-`was_oncall` — 1 if the commit fell on a weekend or between 22:00–05:59 local time, 0 otherwise.
+`was_oncall` — `"true"` if the commit fell on a weekend or between 22:00–05:59 local time, `"false"` otherwise.
 `workflow_deviation` — `normal`, `direct_to_master`, or `on_call_dtm`.
 
 ### oncall_commits.csv (13 columns)
