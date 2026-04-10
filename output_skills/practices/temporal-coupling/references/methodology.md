@@ -3,7 +3,7 @@
 Replace `BRANCHES` with the confirmed branch scope (e.g., `develop master training`).
 Replace the extension filter (`\.(cs|vue|js|ts)$`) with the extensions relevant to the project.
 
-All commands are portable across Windows Git Bash and Linux. No Python required. No GNU awk extensions (mktime, etc.).
+All commands are portable across Windows Git Bash and Linux. No Python required. No GNU awk date extensions (mktime, strftime) — use the portable to_days() function instead. The co-commit query uses `delete files` and the oncall stat patch uses `FILENAME`, which are GNU awk extensions available in gawk (bundled with Git Bash and standard on Linux).
 
 ---
 
